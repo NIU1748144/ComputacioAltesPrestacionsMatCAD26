@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH -N 1 # number of nodes
+#SBATCH --exclusive
+#SBATCH --partition=test.q
+
+THREADS=${1:-4} # default number of threads is 4
+
+module add gcc/13.2.1
+
+make par
+
+export OMP_NUM_THREADS=$THREADS
+echo "Threads: $OMP_NUM_THREADS"
+
+## perf stat ./exec_par configuration/configfile.txt
+./exec_par configuration/configfile.txt

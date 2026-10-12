@@ -1,3 +1,4 @@
+gcc -Ofast main.c common/common.c configuration/config.c layer/layer.c randomizer/randomizer.c initialize/initialize.c training/training.c -o exec_seq -lm
 
 Training...
 Epoch 0 Loss: 0.363908
@@ -16,5 +17,5 @@ Testing...
 Total encerts = 929 (/946) 
 
 
-Goodbye! (40.724231 sec)
+Goodbye! (41.563806 sec)
 
