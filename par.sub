@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1 # number of nodes
-#SBATCH --exclusive
+##SBATCH --exclusive # exclusive only works with --partition=node.q, with test.q it does not
 #SBATCH --partition=test.q
 
 THREADS=${1:-4} # default number of threads is 4
