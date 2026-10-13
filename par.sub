@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -N 1 # number of nodes
-##SBATCH --exclusive # exclusive only works with --partition=nodo.q, with test.q it does not
-#SBATCH --partition=test.q
+#SBATCH --exclusive # exclusive only works with --partition=nodo.q, with test.q it does not
+#SBATCH --partition=nodo.q
 
 THREADS=${1:-4} # default number of threads is 4
 
@@ -12,7 +12,7 @@ make par
 export OMP_NUM_THREADS=$THREADS
 echo "Threads: $OMP_NUM_THREADS"
 
-## perf stat ./exec_par configuration/configfile.txt
-./exec_par configuration/configfile.txt
+ perf stat ./exec_par configuration/configfile.txt
+## ./exec_par configuration/configfile.txt
 
 make clean

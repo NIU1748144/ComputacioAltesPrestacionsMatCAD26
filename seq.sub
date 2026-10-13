@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH -N 1 # number of nodes
-##SBATCH --exclusive # exclusive only works with --partition=nodo.q, with test.q it does not
-#SBATCH --partition=test.q
+#SBATCH --exclusive # exclusive only works with --partition=nodo.q, with test.q it does not
+#SBATCH --partition=nodo.q
 
 module add gcc/13.2.1
 
 make seq
 
-## perf stat ./exec_seq configuration/configfile.txt
-./exec_seq configuration/configfile.txt
+ perf stat ./exec_seq configuration/configfile.txt
+## ./exec_seq configuration/configfile.txt
 
 make clean 
