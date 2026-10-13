@@ -1,0 +1,44 @@
+gcc -Ofast -fopenmp main.c common/common.c configuration/config.c layer/layer.c randomizer/randomizer.c initialize/initialize.c training/training.c -o exec_par -lm
+Threads: 4
+
+Training...
+Epoch 0 Loss: 0.363908
+Epoch 1 Loss: 0.357409
+Epoch 2 Loss: 0.147380
+Epoch 3 Loss: 0.061898
+Epoch 4 Loss: 0.039837
+Epoch 5 Loss: 0.026030
+Epoch 6 Loss: 0.022047
+Epoch 7 Loss: 0.016594
+Epoch 8 Loss: 0.012993
+Epoch 9 Loss: 0.011011
+
+Testing...
+
+Total encerts = 929 (/946) 
+
+
+Goodbye! (26.308949 sec)
+
+
+ Performance counter stats for './exec_par configuration/configfile.txt':
+
+         91.999,87 msec task-clock:u                     #    3,489 CPUs utilized             
+                 0      context-switches:u               #    0,000 /sec                      
+                 0      cpu-migrations:u                 #    0,000 /sec                      
+            14.930      page-faults:u                    #  162,283 /sec                      
+   234.397.679.890      cycles:u                         #    2,548 GHz                         (66,68%)
+    27.293.875.757      stalled-cycles-frontend:u        #   11,64% frontend cycles idle        (66,64%)
+    16.336.781.014      stalled-cycles-backend:u         #    6,97% backend cycles idle         (66,64%)
+   329.757.351.252      instructions:u                   #    1,41  insn per cycle            
+                                                  #    0,08  stalled cycles per insn     (66,66%)
+    61.629.602.074      branches:u                       #  669,888 M/sec                       (66,68%)
+        45.732.287      branch-misses:u                  #    0,07% of all branches             (66,70%)
+
+      26,372243702 seconds time elapsed
+
+      90,274720000 seconds user
+       0,460283000 seconds sys
+
+
+rm -f exec_seq exec_par
