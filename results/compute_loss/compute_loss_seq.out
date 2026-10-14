@@ -1,0 +1,43 @@
+gcc -Ofast main.c common/common.c configuration/config.c layer/layer.c randomizer/randomizer.c initialize/initialize.c training/training.c -o exec_seq -lm
+
+Training...
+Epoch 0 Loss: 0.363908
+Epoch 1 Loss: 0.357409
+Epoch 2 Loss: 0.147380
+Epoch 3 Loss: 0.061898
+Epoch 4 Loss: 0.039837
+Epoch 5 Loss: 0.026030
+Epoch 6 Loss: 0.022047
+Epoch 7 Loss: 0.016594
+Epoch 8 Loss: 0.012993
+Epoch 9 Loss: 0.011011
+
+Testing...
+
+Total encerts = 929 (/946) 
+
+
+Goodbye! (40.620757 sec)
+
+
+ Performance counter stats for './exec_seq configuration/configfile.txt':
+
+         40.677,83 msec task-clock:u                     #    0,996 CPUs utilized             
+                 0      context-switches:u               #    0,000 /sec                      
+                 0      cpu-migrations:u                 #    0,000 /sec                      
+             2.074      page-faults:u                    #   50,986 /sec                      
+   104.381.373.248      cycles:u                         #    2,566 GHz                         (66,67%)
+       401.648.503      stalled-cycles-frontend:u        #    0,38% frontend cycles idle        (66,66%)
+    34.398.093.594      stalled-cycles-backend:u         #   32,95% backend cycles idle         (66,67%)
+   202.948.485.130      instructions:u                   #    1,94  insn per cycle            
+                                                  #    0,17  stalled cycles per insn     (66,67%)
+    25.415.785.818      branches:u                       #  624,807 M/sec                       (66,67%)
+        43.258.396      branch-misses:u                  #    0,17% of all branches             (66,67%)
+
+      40,829305033 seconds time elapsed
+
+      40,173245000 seconds user
+       0,012744000 seconds sys
+
+
+rm -f exec_seq exec_par

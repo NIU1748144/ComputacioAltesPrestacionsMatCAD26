@@ -100,7 +100,7 @@ void forward_prop() {
 */
 float compute_loss(int i) {
     double tmpcost = 0, p;
-
+    
     for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
         p = lay[num_layers - 1].actv[j];
         if (lay[num_layers - 1].actv[j] < EPSILON) p = EPSILON;
