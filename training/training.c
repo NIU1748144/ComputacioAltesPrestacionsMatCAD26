@@ -39,9 +39,10 @@ void feed_input(int i) {
  * batch.
  **/
 void init_deltas() {
-    for (int i = 0; i < num_layers - 1; i++) {
+    for (int i = 0; i < num_layers - 1; i++) { 
         for (int j = 0; j < num_neurons[i]; j++) 
             lay[i].dbias[j] = 0.0;
+        
         for (int j = 0; j < num_neurons[i + 1] * num_neurons[i]; j++) 
             lay[i].dw[j] = 0.0;
     }
