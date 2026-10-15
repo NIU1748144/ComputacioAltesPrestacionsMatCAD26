@@ -71,7 +71,7 @@ void forward_prop() {
     #pragma omp parallel
     for (int i = 1; i < num_layers; i++) {
         if (debug == 1) printf("Valors activació capa %d \n", i);
-	#pragma omp for schedule(static)
+	#pragma omp for schedule(guided, 16)
         for (int j = 0; j < num_neurons[i]; j++) {
 	    float z = lay[i].bias[j];
 	    #pragma omp simd reduction(+:z)
