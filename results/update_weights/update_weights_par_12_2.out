@@ -1,0 +1,44 @@
+make: No se hace nada para 'par'.
+Threads: 12
+
+Training...
+Epoch 0 Loss: 0.363908
+Epoch 1 Loss: 0.357409
+Epoch 2 Loss: 0.147380
+Epoch 3 Loss: 0.061898
+Epoch 4 Loss: 0.039837
+Epoch 5 Loss: 0.026030
+Epoch 6 Loss: 0.022047
+Epoch 7 Loss: 0.016594
+Epoch 8 Loss: 0.012993
+Epoch 9 Loss: 0.011011
+
+Testing...
+
+Total encerts = 929 (/946) 
+
+
+Goodbye! (40.645464 sec)
+
+
+ Performance counter stats for './exec_par configuration/configfile.txt':
+
+         46.204,10 msec task-clock:u                     #    1,135 CPUs utilized             
+                 0      context-switches:u               #    0,000 /sec                      
+                 0      cpu-migrations:u                 #    0,000 /sec                      
+            13.144      page-faults:u                    #  284,477 /sec                      
+   118.146.998.952      cycles:u                         #    2,557 GHz                         (66,65%)
+     1.900.100.148      stalled-cycles-frontend:u        #    1,61% frontend cycles idle        (66,69%)
+    39.574.562.371      stalled-cycles-backend:u         #   33,50% backend cycles idle         (66,68%)
+   213.143.737.389      instructions:u                   #    1,80  insn per cycle            
+                                                  #    0,19  stalled cycles per insn     (66,68%)
+    28.330.124.764      branches:u                       #  613,152 M/sec                       (66,67%)
+        43.025.179      branch-misses:u                  #    0,15% of all branches             (66,63%)
+
+      40,712215838 seconds time elapsed
+
+      45,404061000 seconds user
+       0,251567000 seconds sys
+
+
+rm -f exec_seq exec_par

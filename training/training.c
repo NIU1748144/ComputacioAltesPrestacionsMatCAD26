@@ -67,14 +67,17 @@ void init_deltas() {
  *
  */
 void forward_prop() {
+    #pragma omp parallel
     for (int i = 1; i < num_layers; i++) {
         if (debug == 1) printf("Valors activació capa %d \n", i);
+	#pragma omp for schedule(static)
         for (int j = 0; j < num_neurons[i]; j++) {
-            lay[i].z[j] = lay[i].bias[j];
+	    float z = lay[i].bias[j];
+	    #pragma omp simd reduction(+:z)
             for (int k = 0; k < num_neurons[i - 1]; k++)
-                lay[i].z[j] +=
-                    ((lay[i - 1].out_weights[j * num_neurons[i - 1] + k]) *
-                     (lay[i - 1].actv[k]));
+		z += ((lay[i - 1].out_weights[j * num_neurons[i - 1] + k]) * (lay[i - 1].actv[k]));
+
+	    lay[i].z[j] = z;
             if (i < num_layers - 1)  // Relu Activation Function for Hidden Layers
                 lay[i].actv[j] = ((lay[i].z[j]) < 0) ? 0 : lay[i].z[j];
             else  // Sigmoid Activation Function for Output Layer
@@ -131,46 +134,43 @@ float compute_loss(int i) {
  *
  */
 void back_prop(int p) {
-    // Output Layer
-    for (int k = 0; k < num_neurons[num_layers - 2]; k++) 
-        lay[num_layers - 2].dactv[k] = 0;
+    {
+    	// Output Layer
 
-    for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
-        lay[num_layers - 1].dz[j] =
-            (lay[num_layers - 1].actv[j] - desired_outputs[p][j]) *
-            (lay[num_layers - 1].actv[j]) * (1 - lay[num_layers - 1].actv[j]);
-        lay[num_layers - 1].dbias[j] += lay[num_layers - 1].dz[j];
-    }
+    	for (int k = 0; k < num_neurons[num_layers - 2]; k++) 
+        	lay[num_layers - 2].dactv[k] = 0;
 
-    for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
-        for (int k = 0; k < num_neurons[num_layers - 2]; k++) {
-            lay[num_layers - 2].dw[j * num_neurons[num_layers - 2] + k] +=
-                (lay[num_layers - 1].dz[j] * lay[num_layers - 2].actv[k]);
-            lay[num_layers - 2].dactv[k] +=          
-                lay[num_layers - 2].out_weights[j * num_neurons[num_layers - 2] + k] *
-                lay[num_layers - 1].dz[j];
-        }
-    }
+   	for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
+        	lay[num_layers - 1].dz[j] = (lay[num_layers - 1].actv[j] - desired_outputs[p][j]) * (lay[num_layers - 1].actv[j]) * (1 - lay[num_layers - 1].actv[j]);
+        	lay[num_layers - 1].dbias[j] += lay[num_layers - 1].dz[j];
+    	 }
 
-    // Hidden Layers
-    for (int i = num_layers - 2; i > 0; i--) {
-        if ( i > 1 )
-            for (int k = 0; k < num_neurons[i - 1]; k++)
-                lay[i - 1].dactv[k] = 0;
-
-        for (int j = 0; j < num_neurons[i]; j++) {
-            lay[i].dz[j] = (lay[i].z[j] >= 0) ? lay[i].dactv[j] : 0;
-
-            for (int k = 0; k < num_neurons[i - 1]; k++) {
-                lay[i - 1].dw[j * num_neurons[i - 1] + k] +=
-                    lay[i].dz[j] * lay[i - 1].actv[k];
-
-                if (i > 1)
-                    lay[i - 1].dactv[k] +=
-                        lay[i - 1].out_weights[j * num_neurons[i - 1] + k] *
-                        lay[i].dz[j];
+    	for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
+            for (int k = 0; k < num_neurons[num_layers - 2]; k++) {
+            	lay[num_layers - 2].dw[j * num_neurons[num_layers - 2] + k] += (lay[num_layers - 1].dz[j] * lay[num_layers - 2].actv[k]);
+                lay[num_layers - 2].dactv[k] += lay[num_layers - 2].out_weights[j * num_neurons[num_layers - 2] + k] * lay[num_layers - 1].dz[j];
             }
-            lay[i].dbias[j] += lay[i].dz[j];
+        }
+
+        // Hidden Layers
+        for (int i = num_layers - 2; i > 0; i--) {
+            if ( i > 1 )
+
+                for (int k = 0; k < num_neurons[i - 1]; k++) {
+                    lay[i - 1].dactv[k] = 0;
+		}
+
+            for (int j = 0; j < num_neurons[i]; j++) {
+                lay[i].dz[j] = (lay[i].z[j] >= 0) ? lay[i].dactv[j] : 0;
+
+                for (int k = 0; k < num_neurons[i - 1]; k++) {
+                    lay[i - 1].dw[j * num_neurons[i - 1] + k] += lay[i].dz[j] * lay[i - 1].actv[k];
+
+                    if (i > 1)
+                        lay[i - 1].dactv[k] += lay[i - 1].out_weights[j * num_neurons[i - 1] + k] * lay[i].dz[j];
+                }
+                lay[i].dbias[j] += lay[i].dz[j];
+            }
         }
     }
 }
@@ -184,12 +184,12 @@ void back_prop(int p) {
  */
 void update_weights(void) {
     for (int i = 0; i < num_layers - 1; i++) {
-        for (int j = 0; j < num_neurons[i + 1]; j++)
+	for (int j = 0; j < num_neurons[i + 1]; j++)
             for (int k = 0; k < num_neurons[i]; k++)  // Update Weights
                 lay[i].out_weights[j * num_neurons[i] + k] =
                     (lay[i].out_weights[j * num_neurons[i] + k]) -
                     (alpha * lay[i].dw[j * num_neurons[i] + k]);
-
+	
         for (int j = 0; j < num_neurons[i]; j++)  // Update Bias
             lay[i].bias[j] = lay[i].bias[j] - (alpha * lay[i].dbias[j]);
     }
