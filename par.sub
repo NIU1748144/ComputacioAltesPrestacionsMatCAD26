@@ -11,7 +11,7 @@ make par
 
 export OMP_NUM_THREADS=$THREADS
 echo "Threads: $OMP_NUM_THREADS"
-echo "LABEL=guided_16"
+echo "LABEL=static"
 
  perf stat ./exec_par configuration/configfile.txt
 ## ./exec_par configuration/configfile.txt
