@@ -1,44 +1,44 @@
-make: No se hace nada para 'par'.
+gcc -Ofast -fopenmp main.c common/common.c configuration/config.c layer/layer.c randomizer/randomizer.c initialize/initialize.c training/training.c -o exec_par -lm
 Threads: 8
 
 Training...
-Epoch 0 Loss: 1.904500
-Epoch 1 Loss: 2.349348
-Epoch 2 Loss: 2.521983
-Epoch 3 Loss: 2.740263
-Epoch 4 Loss: 2.727005
-Epoch 5 Loss: 2.718139
-Epoch 6 Loss: 2.700487
-Epoch 7 Loss: 2.660403
-Epoch 8 Loss: 2.263856
-Epoch 9 Loss: 2.492313
+Epoch 0 Loss: 0.363990
+Epoch 1 Loss: 0.315631
+Epoch 2 Loss: 0.136774
+Epoch 3 Loss: 0.065567
+Epoch 4 Loss: 0.040464
+Epoch 5 Loss: 0.026182
+Epoch 6 Loss: 0.021163
+Epoch 7 Loss: 0.016763
+Epoch 8 Loss: 0.012591
+Epoch 9 Loss: 0.011157
 
 Testing...
 
-Total encerts = 87 (/946) 
+Total encerts = 929 (/946) 
 
 
-Goodbye! (32.581096 sec)
+Goodbye! (28.615630 sec)
 
 
  Performance counter stats for './exec_par configuration/configfile.txt':
 
-        214.116,60 msec task-clock:u              #    6,558 CPUs utilized          
-                 0      context-switches:u        #    0,000 /sec                   
-                 0      cpu-migrations:u          #    0,000 /sec                   
-             9.472      page-faults:u             #   44,238 /sec                   
-   546.351.815.212      cycles:u                  #    2,552 GHz                      (66,66%)
-    46.484.780.566      stalled-cycles-frontend:u #    8,51% frontend cycles idle     (66,63%)
-   164.169.812.652      stalled-cycles-backend:u  #   30,05% backend cycles idle      (66,64%)
-   517.587.060.834      instructions:u            #    0,95  insn per cycle         
-                                                  #    0,32  stalled cycles per insn  (66,68%)
-   115.157.840.831      branches:u                #  537,828 M/sec                    (66,71%)
-        44.993.169      branch-misses:u           #    0,04% of all branches          (66,69%)
+        221.978,47 msec task-clock:u                     #    7,739 CPUs utilized             
+                 0      context-switches:u               #    0,000 /sec                      
+                 0      cpu-migrations:u                 #    0,000 /sec                      
+            11.279      page-faults:u                    #   50,811 /sec                      
+   570.735.886.923      cycles:u                         #    2,571 GHz                         (50,00%)
+    71.117.641.969      stalled-cycles-frontend:u        #   12,46% frontend cycles idle        (50,01%)
+    30.703.010.050      stalled-cycles-backend:u         #    5,38% backend cycles idle         (50,00%)
+   627.664.529.026      instructions:u                   #    1,10  insn per cycle            
+                                                  #    0,11  stalled cycles per insn     (50,00%)
+   157.127.396.576      branches:u                       #  707,850 M/sec                       (49,99%)
+        47.676.621      branch-misses:u                  #    0,03% of all branches             (50,00%)
 
-      32,649677190 seconds time elapsed
+      28,682844688 seconds time elapsed
 
-     210,119721000 seconds user
-       1,368373000 seconds sys
+     219,626911000 seconds user
+       0,191706000 seconds sys
 
 
 rm -f exec_seq exec_par
