@@ -1,0 +1,22 @@
+% cal \usepackage{multirow}
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Política} & \textbf{Chunk} & \textbf{Temps (s)} & \textbf{Dif. respecte \textit{static} (\%)} \\ \hline
+\multirow{1}{*}{\textit{static}} & --- & \textbf{10,107 $\pm$ 0,071} & \textbf{0,00} \\ \hline
+\multirow{5}{*}{\textit{dynamic}} & 1 & 20,126 $\pm$ 0,082 & 99,12$^{*}$ \\ \cline{2-4}
+ & 2 & 16,897 $\pm$ 0,094 & 67,17$^{*}$ \\ \cline{2-4}
+ & 4 & 14,931 $\pm$ 0,241 & 47,73$^{*}$ \\ \cline{2-4}
+ & 8 & 13,451 $\pm$ 0,061 & 33,08$^{*}$ \\ \cline{2-4}
+ & 16 & 12,983 $\pm$ 0,342 & 28,45$^{*}$ \\ \hline
+\multirow{5}{*}{\textit{guided}} & 1 & 13,805 $\pm$ 0,164 & 36,59$^{*}$ \\ \cline{2-4}
+ & 2 & 13,610 $\pm$ 0,156 & 34,65$^{*}$ \\ \cline{2-4}
+ & 4 & 13,317 $\pm$ 0,095 & 31,76$^{*}$ \\ \cline{2-4}
+ & 8 & 13,147 $\pm$ 0,130 & 30,07$^{*}$ \\ \cline{2-4}
+ & 16 & 12,924 $\pm$ 0,080 & 27,87$^{*}$ \\ \hline
+\end{tabular}
+\par\vspace{2pt}{\footnotesize $^{*}$ Diferència significativa respecte a la referència ($|z|>2$). En negreta, la configuració amb millor temps.}
+\caption{Temps d'execució segons la política i la mida de \textit{chunk} amb 10 fils (mitjana $\pm$ desviació estàndard).}
+\label{tab:politiques}
+\end{table}

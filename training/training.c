@@ -26,7 +26,7 @@
  * @param i Índex de l'element del conjunt d'entrenament que farem servir.
  **/
 void feed_input(int i) {
-
+    #pragma omp parallel for
     for (int j = 0; j < num_neurons[0]; j++)
         lay[0].actv[j] = input[i][j];
 }
@@ -42,7 +42,6 @@ void feed_input(int i) {
 void init_deltas() {
 
     for (int i = 0; i < num_layers - 1; i++) {
- 
         for (int j = 0; j < num_neurons[i]; j++) 
             lay[i].dbias[j] = 0.0;
 
@@ -71,13 +70,13 @@ void init_deltas() {
  *
  */
 void forward_prop() {
-
+    #pragma omp parallel
     for (int i = 1; i < num_layers; i++) {
 	if (debug == 1) printf("Valors activació capa %d \n", i);
-
+	#pragma omp for schedule(static)
         for (int j = 0; j < num_neurons[i]; j++) {
 	    float z = lay[i].bias[j];
-
+	    #pragma omp simd reduction(+:z)
             for (int k = 0; k < num_neurons[i - 1]; k++)
 		z += ((lay[i - 1].out_weights[j * num_neurons[i - 1] + k]) * (lay[i - 1].actv[k]));
 
