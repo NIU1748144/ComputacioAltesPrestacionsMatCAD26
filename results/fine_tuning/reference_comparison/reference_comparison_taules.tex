@@ -1,0 +1,27 @@
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Fils} & \textbf{Ref. (s)} & \textbf{Propi (s)} & \textbf{Dif. (s)} & \textbf{Dif. (\%)} & \textbf{Execs. $<$ ref.} \\ \hline
+2 & 22,543 & 20,408 $\pm$ 0,044 & $-$2,135 & $-$9,47 & 20/20 \\ \hline
+4 & 11,730 & 10,707 $\pm$ 0,036 & $-$1,023 & $-$8,72 & 20/20 \\ \hline
+6 & 8,309 & 7,745 $\pm$ 0,034 & $-$0,564 & $-$6,79 & 20/20 \\ \hline
+12 & 5,264 & 5,722 $\pm$ 0,135 & 0,458 & 8,71 & 0/20 \\ \hline
+\end{tabular}
+\caption{Comparació del temps d'execució propi (mitjana $\pm$ desviació estàndard de 20 execucions) amb el temps de referència (Wilma, \textit{nodo.q}, 10 èpoques). Els valors negatius indiquen un temps inferior al de referència.}
+\label{tab:comp_temps}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Fils} & \textbf{Speedup ref.} & \textbf{Speedup propi} & \textbf{Eficiència ref.} & \textbf{Eficiència pròpia} \\ \hline
+2 & 1,81 & 2,00 $\pm$ 0,00 & 0,90 & 1,00 \\ \hline
+4 & 3,47 & 3,80 $\pm$ 0,01 & 0,87 & 0,95 \\ \hline
+6 & 4,90 & 5,26 $\pm$ 0,02 & 0,82 & 0,88 \\ \hline
+12 & 7,74 & 7,12 $\pm$ 0,17 & 0,64 & 0,59 \\ \hline
+\end{tabular}
+\caption{Speedup i eficiència propis i de referència (Wilma, \textit{nodo.q}), calculats amb el temps seqüencial de referència (40,738 s).}
+\label{tab:comp_speedup}
+\end{table}
