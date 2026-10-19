@@ -140,7 +140,7 @@ float compute_loss(int i) {
  void back_prop(int p) {
     float *dactv = lay[num_layers - 2].dactv;
     float *dactv_hidden;
-    float dummy = 0.0f;
+    float dummy = 0.0f; // creat ja que al arribar a la ultima capa (la d'entrada) no cal calcular el gradient dactv un altre cop ja que no hi ha cap altra capa on propagar-lo 
 
     #pragma omp parallel
     {
@@ -155,7 +155,7 @@ float compute_loss(int i) {
                 lay[num_layers - 1].dbias[j] += lay[num_layers - 1].dz[j];
         }
 
-        #pragma omp for collapse(2) schedule(static) reduction(+:dactv[:num_neurons[num_layers - 2]])
+        #pragma omp for collapse(2) schedule(static) reduction(+:dactv[:num_neurons[num_layers - 2]]) // Basicament protegim el vector dactv i posem [inici:numbre d'elemnts del vector] i creem una copia per a cada thread per a que no hi hagi condició de carrera
         for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
             for (int k = 0; k < num_neurons[num_layers - 2]; k++) {
                 lay[num_layers - 2].dw[j * num_neurons[num_layers - 2] + k] += (lay[num_layers - 1].dz[j] * lay[num_layers - 2].actv[k]);
@@ -169,7 +169,7 @@ float compute_loss(int i) {
             
             #pragma omp single
             {
-                dactv_hidden = (i > 1) ? lay[i - 1].dactv : &dummy;
+                dactv_hidden = (i > 1) ? lay[i - 1].dactv : &dummy; // Basicament, si i>1 dactv_hidden = lay[i-1].dactv, sino dactv_hidden= &dummy
             }
 
             if ( i > 1 ){
@@ -180,7 +180,7 @@ float compute_loss(int i) {
                 }
             }
 
-            #pragma omp for schedule(static) reduction(+:dactv_hidden[:(i > 1 ? num_neurons[i - 1] : 1)])
+            #pragma omp for schedule(static) reduction(+:dactv_hidden[:(i > 1 ? num_neurons[i - 1] : 1)]) // Aquí de la metixa manera determinem la llargada del vector, si i>1 tindra la llargada de la capa anterior, i sinó tindrà 0 ja que en la capa de sortida no s'ha de passar cap gradient ja que no l'ha de transmetre a cap altra.
             for (int j = 0; j < num_neurons[i]; j++) {
                 lay[i].dz[j] = (lay[i].z[j] >= 0) ? lay[i].dactv[j] : 0;
 
