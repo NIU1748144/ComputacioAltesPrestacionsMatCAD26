@@ -25,7 +25,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <mpi.h>
 
+int rank, size;
 //-----------FREE INPUT------------
 void freeInput(int np, char** input) {
     for (int i = 0; i < np; i++)
@@ -97,7 +99,8 @@ void train_neural_net() {
 
         for (int nb = 0; nb < num_training_patterns/batch_size; nb++) {
             init_deltas();
-            for (int i = nb*batch_size; i < (nb+1)*batch_size; i++) {
+
+            for (int i = nb*batch_size + rank; i < (nb+1)*batch_size; i+=size) {
                 int p = ranpat[i];
 
                 feed_input(p);
@@ -105,6 +108,21 @@ void train_neural_net() {
                 loss += compute_loss(p);
                 back_prop(p);
             }
+	    for (int l = 0; l < num_layers - 1; l++){
+		int nw = num_neurons[l]*num_neurons[l+1];
+		int nbias = num_neurons[l+1];
+
+		if (rank == 0){
+		    MPI_Reduce(MPI_IN_PLACE, lay[l].dw, nw, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+		    MPI_Reduce(MPI_IN_PLACE, lay[l+1].dbias, nbias, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+		} else {
+		    MPI_Reduce(lay[l].dw, lay[l].dw, nw, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+	            MPI_Reduce(lay[l+1].dbias, lay[l+1].dbias, nbias, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+	        }
+
+	        MPI_Bcast(lay[l].dw, nw, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	        MPI_Bcast(lay[l+1].dbias, nbias, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	    }
             update_weights();
         }
 
@@ -155,6 +173,11 @@ int main(int argc, char** argv) {
         printf("Error in Initialization...\n");
         exit(0);
     }
+    MPI_Init(&argc, &argv);
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
 
     // Start measuring time
     struct timeval begin;
@@ -173,6 +196,7 @@ int main(int argc, char** argv) {
         printf("Error in Dinitialization...\n");
 
     printf("\n\nGoodbye! (%f sec)\n\n", elapsed);
-
+	
+    MPI_Finalize();
     return 0;
 }

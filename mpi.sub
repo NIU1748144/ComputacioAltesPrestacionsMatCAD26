@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --cpus-per-task=1
+#SBATCH --exclusive
+#SBATCH --partition=nodo.q
+
+set -e
+
+module add gcc/13.2.1
+module add openmpi
+
+make mpi
+
+export OMP_NUM_THREADS=1
+
+echo "Processos MPI: ${SLURM_NTASKS}"
+
+mpirun -np "${SLURM_NTASKS}" ./exec_mpi configuration/configfile.txt

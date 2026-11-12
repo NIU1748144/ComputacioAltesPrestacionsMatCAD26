@@ -1,4 +1,5 @@
 CC     := gcc
+MPICC  := mpicc
 OPT    := -Ofast
 LDLIBS := -lm
 
@@ -17,6 +18,7 @@ HDR := $(wildcard *.h */*.h)
 all: seq par
 seq: exec_seq
 par: exec_par
+mpi: exec_mpi
 
 exec_seq: $(SRC) $(HDR)
 	$(CC) $(OPT) $(SRC) -o $@ $(LDLIBS)
@@ -24,5 +26,7 @@ exec_seq: $(SRC) $(HDR)
 exec_par: $(SRC) $(HDR)
 	$(CC) $(OPT) -fopenmp $(SRC) -o $@ $(LDLIBS)
 
+exec_mpi: $(SRC) $(HDR)
+	$(MPICC) $(OPT) $(SRC) -o $@ $(LDLIBS)
 clean:
-	rm -f exec_seq exec_par
+	rm -f exec_seq exec_par exec_mpi
