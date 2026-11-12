@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --ntasks=4
+#SBATCH --ntasks=6
 #SBATCH --cpus-per-task=1
 #SBATCH --exclusive
-#SBATCH --partition=nodo.q
+#SBATCH --partition=new-nodo.q
 
 set -e
 
