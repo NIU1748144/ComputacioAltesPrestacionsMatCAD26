@@ -17,3 +17,5 @@ export OMP_NUM_THREADS=1
 echo "Processos MPI: ${SLURM_NTASKS}"
 
 mpirun -np "${SLURM_NTASKS}" ./exec_mpi configuration/configfile.txt
+
+make clean

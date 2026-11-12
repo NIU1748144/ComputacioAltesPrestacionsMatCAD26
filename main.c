@@ -72,8 +72,9 @@ void printRecognized(int p, layer Output) {
  *
  */
 void train_neural_net() {
-    printf("\nTraining...\n");
-
+    if (rank == 0){
+	printf("\nTraining...\n");
+    }
     if ((input = loadPatternSet(num_training_patterns, dataset_training_path,
                                 1)) == NULL) {
         printf("Loading Patterns: Error!!\n");
@@ -122,12 +123,17 @@ void train_neural_net() {
 
 	        MPI_Bcast(lay[l].dw, nw, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	        MPI_Bcast(lay[l+1].dbias, nbias, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	
 	    }
             update_weights();
         }
-
-        printf("Epoch %d Loss: %f\n", it, loss/num_training_patterns);
-        if (debug == 1) getchar();
+	
+	float global_loss = 0.0;
+	MPI_Reduce(&loss, &global_loss, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+	if (rank == 0){
+            printf("Epoch %d Loss: %f\n", it, global_loss/num_training_patterns);
+	}
+	if (debug == 1) getchar();
     }
     freeInput(num_training_patterns, input);
 }
@@ -135,9 +141,9 @@ void train_neural_net() {
 //-----------TEST THE TRAINED NETWORK------------
 void test_nn() {
     char** rSet;
-
-    printf("\nTesting...\n");
-
+    if (rank == 0){
+        printf("\nTesting...\n");
+    }
     if ((rSet = loadPatternSet(num_test_patterns, dataset_test_path, 0)) ==
         NULL) {
         printf("Error!!\n");
@@ -151,8 +157,9 @@ void test_nn() {
         forward_prop();
         printRecognized(i, lay[num_layers - 1]);
     }
-
-    printf("\nTotal encerts = %d (/%d) \n", total, num_test_patterns);
+    if (rank == 0){
+        printf("\nTotal encerts = %d (/%d) \n", total, num_test_patterns);
+    }
     freeInput(num_test_patterns, rSet);
 }
 
@@ -174,7 +181,6 @@ int main(int argc, char** argv) {
         exit(0);
     }
     MPI_Init(&argc, &argv);
-    int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -194,9 +200,9 @@ int main(int argc, char** argv) {
 
     if (dinit() != SUCCESS_DINIT)
         printf("Error in Dinitialization...\n");
-
-    printf("\n\nGoodbye! (%f sec)\n\n", elapsed);
-	
+    if (rank == 0){
+        printf("\n\nGoodbye! (%f sec)\n\n", elapsed);
+    }	
     MPI_Finalize();
     return 0;
 }
