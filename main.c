@@ -113,11 +113,9 @@ void train_neural_net() {
 		int nw = num_neurons[l]*num_neurons[l+1];
 		int nbias = num_neurons[l+1];
 
-		MPI_Allreduce(MPI_IN_PLACE, lay[l].dw, nw,
-                  MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+		MPI_Allreduce(MPI_IN_PLACE, lay[l].dw, nw,  MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 
-        MPI_Allreduce(MPI_IN_PLACE, lay[l + 1].dbias, nbias,
-                  MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+	        MPI_Allreduce(MPI_IN_PLACE, lay[l + 1].dbias, nbias, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 	
 	    }
             update_weights();
@@ -188,9 +186,9 @@ int main(int argc, char** argv) {
     train_neural_net();
 
     // Test
-    
-    test_nn();
-    
+    if (rank == 0){ 
+    	test_nn();
+    }
 
     // Stop measuring time and calculate the elapsed time
     double elapsed = elapsedT(begin);
