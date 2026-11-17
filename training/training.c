@@ -26,7 +26,6 @@
  * @param i Índex de l'element del conjunt d'entrenament que farem servir.
  **/
 void feed_input(int i) {
-    #pragma omp parallel for
     for (int j = 0; j < num_neurons[0]; j++)
         lay[0].actv[j] = input[i][j];
 }
@@ -40,12 +39,9 @@ void feed_input(int i) {
  * batch.
  **/
 void init_deltas() {
-    #pragma omp parallel
     for (int i = 0; i < num_layers - 1; i++) {
-	#pragma omp for nowait
         for (int j = 0; j < num_neurons[i]; j++) 
             lay[i].dbias[j] = 0.0;
-	#pragma omp for schedule(static) nowait
         for (int j = 0; j < num_neurons[i + 1] * num_neurons[i]; j++) 
             lay[i].dw[j] = 0.0;
     }
@@ -71,17 +67,14 @@ void init_deltas() {
  *
  */
 void forward_prop() {
-    #pragma omp parallel
     for (int i = 1; i < num_layers; i++) {
-	if (debug == 1) printf("Valors activació capa %d \n", i);
-	#pragma omp for schedule(static)
+        if (debug == 1) printf("Valors activació capa %d \n", i);
         for (int j = 0; j < num_neurons[i]; j++) {
-	    float z = lay[i].bias[j];
-	    #pragma omp simd reduction(+:z)
+            lay[i].z[j] = lay[i].bias[j];
             for (int k = 0; k < num_neurons[i - 1]; k++)
-		z += ((lay[i - 1].out_weights[j * num_neurons[i - 1] + k]) * (lay[i - 1].actv[k]));
-
-	    lay[i].z[j] = z;
+                lay[i].z[j] +=
+                    ((lay[i - 1].out_weights[j * num_neurons[i - 1] + k]) *
+                     (lay[i - 1].actv[k]));
             if (i < num_layers - 1)  // Relu Activation Function for Hidden Layers
                 lay[i].actv[j] = ((lay[i].z[j]) < 0) ? 0 : lay[i].z[j];
             else  // Sigmoid Activation Function for Output Layer
@@ -106,7 +99,7 @@ void forward_prop() {
 */
 float compute_loss(int i) {
     double tmpcost = 0, p;
-    #pragma omp parallel for private(p) reduction(+:tmpcost) schedule(static)
+
     for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
         p = lay[num_layers - 1].actv[j];
         if (lay[num_layers - 1].actv[j] < EPSILON) p = EPSILON;
@@ -137,65 +130,51 @@ float compute_loss(int i) {
  * (input layer) que és coneguda (imatge d'entrada).
  *
  */
- void back_prop(int p) {
-    float *dactv = lay[num_layers - 2].dactv;
-    float *dactv_hidden;
-    float dummy = 0.0f; // creat ja que al arribar a la ultima capa (la d'entrada) no cal calcular el gradient dactv un altre cop ja que no hi ha cap altra capa on propagar-lo 
+void back_prop(int p) {
+    // Output Layer
+    for (int k = 0; k < num_neurons[num_layers - 2]; k++) 
+        lay[num_layers - 2].dactv[k] = 0;
 
-    #pragma omp parallel
-    {
-        // Output Layer
-        #pragma omp for schedule(static) nowait
-        for (int k = 0; k < num_neurons[num_layers - 2]; k++)
-                lay[num_layers - 2].dactv[k] = 0;
+    for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
+        lay[num_layers - 1].dz[j] =
+            (lay[num_layers - 1].actv[j] - desired_outputs[p][j]) *
+            (lay[num_layers - 1].actv[j]) * (1 - lay[num_layers - 1].actv[j]);
+        lay[num_layers - 1].dbias[j] += lay[num_layers - 1].dz[j];
+    }
 
-        #pragma omp for schedule(static)
-        for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
-                lay[num_layers - 1].dz[j] = (lay[num_layers - 1].actv[j] - desired_outputs[p][j]) * (lay[num_layers - 1].actv[j]) * (1 - lay[num_layers - 1].actv[j]);
-                lay[num_layers - 1].dbias[j] += lay[num_layers - 1].dz[j];
+    for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
+        for (int k = 0; k < num_neurons[num_layers - 2]; k++) {
+            lay[num_layers - 2].dw[j * num_neurons[num_layers - 2] + k] +=
+                (lay[num_layers - 1].dz[j] * lay[num_layers - 2].actv[k]);
+            lay[num_layers - 2].dactv[k] +=          
+                lay[num_layers - 2].out_weights[j * num_neurons[num_layers - 2] + k] *
+                lay[num_layers - 1].dz[j];
         }
+    }
 
-        #pragma omp for collapse(2) schedule(static) reduction(+:dactv[:num_neurons[num_layers - 2]]) // Basicament protegim el vector dactv i posem [inici:numbre d'elemnts del vector] i creem una copia per a cada thread per a que no hi hagi condició de carrera
-        for (int j = 0; j < num_neurons[num_layers - 1]; j++) {
-            for (int k = 0; k < num_neurons[num_layers - 2]; k++) {
-                lay[num_layers - 2].dw[j * num_neurons[num_layers - 2] + k] += (lay[num_layers - 1].dz[j] * lay[num_layers - 2].actv[k]);
-                
-                dactv[k] += lay[num_layers - 2].out_weights[j * num_neurons[num_layers - 2] + k] * lay[num_layers - 1].dz[j];
+    // Hidden Layers
+    for (int i = num_layers - 2; i > 0; i--) {
+        if ( i > 1 )
+            for (int k = 0; k < num_neurons[i - 1]; k++)
+                lay[i - 1].dactv[k] = 0;
+
+        for (int j = 0; j < num_neurons[i]; j++) {
+            lay[i].dz[j] = (lay[i].z[j] >= 0) ? lay[i].dactv[j] : 0;
+
+            for (int k = 0; k < num_neurons[i - 1]; k++) {
+                lay[i - 1].dw[j * num_neurons[i - 1] + k] +=
+                    lay[i].dz[j] * lay[i - 1].actv[k];
+
+                if (i > 1)
+                    lay[i - 1].dactv[k] +=
+                        lay[i - 1].out_weights[j * num_neurons[i - 1] + k] *
+                        lay[i].dz[j];
             }
-        }
-
-        // Hidden Layers
-        for (int i = num_layers - 2; i > 0; i--) {
-            
-            #pragma omp single
-            {
-                dactv_hidden = (i > 1) ? lay[i - 1].dactv : &dummy; // Basicament, si i>1 dactv_hidden = lay[i-1].dactv, sino dactv_hidden= &dummy
-            }
-
-            if ( i > 1 ){
-
-                #pragma omp for schedule(static)
-                for (int k = 0; k < num_neurons[i - 1]; k++) {
-                    dactv_hidden[k] = 0;
-                }
-            }
-
-            #pragma omp for schedule(static) reduction(+:dactv_hidden[:(i > 1 ? num_neurons[i - 1] : 1)]) // Aquí de la metixa manera determinem la llargada del vector, si i>1 tindra la llargada de la capa anterior, i sinó tindrà 0 ja que en la capa de sortida no s'ha de passar cap gradient ja que no l'ha de transmetre a cap altra.
-            for (int j = 0; j < num_neurons[i]; j++) {
-                lay[i].dz[j] = (lay[i].z[j] >= 0) ? lay[i].dactv[j] : 0;
-
-                for (int k = 0; k < num_neurons[i - 1]; k++) {
-                    lay[i - 1].dw[j * num_neurons[i - 1] + k] += lay[i].dz[j] * lay[i - 1].actv[k];
-
-                    if (i > 1)
-
-                        dactv_hidden[k] += lay[i - 1].out_weights[j * num_neurons[i - 1] + k] * lay[i].dz[j];
-                }
-                lay[i].dbias[j] += lay[i].dz[j];
-            }
+            lay[i].dbias[j] += lay[i].dz[j];
         }
     }
 }
+
 /**
  * @brief Actualitza els vectors de pesos (out_weights) i de biax (bias) de cada
  * etapa d'acord amb els càlculs fet a la funció de back_prop i el factor
@@ -204,15 +183,13 @@ float compute_loss(int i) {
  * @see back_prop
  */
 void update_weights(void) {
-    #pragma omp parallel
     for (int i = 0; i < num_layers - 1; i++) {
-	#pragma omp for schedule(static) nowait
-	for (int j = 0; j < num_neurons[i + 1]; j++)
+        for (int j = 0; j < num_neurons[i + 1]; j++)
             for (int k = 0; k < num_neurons[i]; k++)  // Update Weights
                 lay[i].out_weights[j * num_neurons[i] + k] =
                     (lay[i].out_weights[j * num_neurons[i] + k]) -
                     (alpha * lay[i].dw[j * num_neurons[i] + k]);
-	#pragma omp for schedule(static) nowait
+
         for (int j = 0; j < num_neurons[i]; j++)  // Update Bias
             lay[i].bias[j] = lay[i].bias[j] - (alpha * lay[i].dbias[j]);
     }
