@@ -13,7 +13,7 @@ SRC := main.c \
 
 HDR := $(wildcard *.h */*.h)
 
-.PHONY: all seq par clean
+.PHONY: all seq par mpi clean
 
 all: seq par
 seq: exec_seq
