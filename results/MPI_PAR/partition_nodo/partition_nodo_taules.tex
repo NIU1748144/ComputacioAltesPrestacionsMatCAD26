@@ -1,0 +1,38 @@
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Processos MPI} & \textbf{Temps (s)} & \textbf{Speedup} & \textbf{Eficiència} \\ \hline
+2 & 30,766 $\pm$ 1,223 & 1,32 $\pm$ 0,05 & 0,66 \\ \hline
+4 & 18,908 $\pm$ 0,698 & 2,15 $\pm$ 0,08 & 0,54 \\ \hline
+6 & 18,803 $\pm$ 0,486 & 2,17 $\pm$ 0,06 & 0,36 \\ \hline
+\end{tabular}
+\caption{Temps d'execució (mitjana $\pm$ desviació estàndard de 20 execucions), speedup i eficiència de la versió MPI. El speedup i l'eficiència es calculen amb el temps seqüencial de referència (40,738 s, Wilma, \textit{nodo.q}).}
+\label{tab:mpi_resultats}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Processos} & \textbf{Ref. (s)} & \textbf{Propi (s)} & \textbf{Dif. (s)} & \textbf{Dif. (\%)} & \textbf{Execs. $<$ ref.} \\ \hline
+2 & 29,466 & 30,766 $\pm$ 1,223 & 1,301 & 4,41 & 2/20 \\ \hline
+4 & 18,382 & 18,908 $\pm$ 0,698 & 0,526 & 2,86 & 5/20 \\ \hline
+6 & 17,820 & 18,803 $\pm$ 0,486 & 0,983 & 5,52 & 0/20 \\ \hline
+\end{tabular}
+\caption{Comparació del temps d'execució MPI propi (mitjana $\pm$ desviació estàndard) amb el temps de referència. Els valors negatius indiquen un temps inferior al de referència.}
+\label{tab:mpi_comp_temps}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Processos} & \textbf{Speedup ref.} & \textbf{Speedup propi} & \textbf{Eficiència ref.} & \textbf{Eficiència pròpia} \\ \hline
+2 & 1,38 & 1,32 $\pm$ 0,05 & 0,69 & 0,66 \\ \hline
+4 & 2,22 & 2,15 $\pm$ 0,08 & 0,55 & 0,54 \\ \hline
+6 & 2,29 & 2,17 $\pm$ 0,06 & 0,38 & 0,36 \\ \hline
+\end{tabular}
+\caption{Speedup i eficiència MPI propis i de referència, calculats amb el temps seqüencial de referència (40,738 s).}
+\label{tab:mpi_comp_speedup}
+\end{table}
