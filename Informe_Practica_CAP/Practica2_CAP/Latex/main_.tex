@@ -1,0 +1,676 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+\usepackage[catalan]{babel}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{parskip}
+\usepackage{listings}
+\usepackage{multirow}
+\usepackage{url}
+
+\newtheorem{defibox}{Definició}[section] % Numerat per seccions
+
+\lstset{
+    language=C,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=none,
+    tabsize=4,
+    numbers=left,
+    numberstyle=\tiny\color{gray}
+}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,
+    urlcolor=blue,
+    citecolor=green
+}
+
+\title{Pràctica MPI \\ Computació d'Altes Prestacions}
+\author{Miguel Arlindo Correia Salgueiro - 1747746 \\Oriol Figueras Ollé - 1748144}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Introducció}
+L'objectiu principal d'aquesta pràctica consisteix a paral·lelitzar una implementació escrita en $C$ d'una xarxa neuronal de tipus perceptró fent servir una aproximació de paral·lelització de memòria distribuïda. S'usa MPI per fer la implementació.
+
+S'usa també Git com a eina de control de versions.
+
+\subsection{Compilació i execució}
+Per a compilar aquest projecte s'ha ampliat el \textit{makefile} creat per a la pràctica anterior.
+En el \textit{makefile} ja hi havia definides dues maneres de compilar, una amb la paral·lelització implementada d'OpenMP i l'altra de manera seqüencial. S'ha afegit una compilació per a usar MPI.
+A continuació es mostra el contingut del fitxer:
+\begin{verbatim}
+CC     := gcc
+MPICC  := mpicc
+OPT    := -Ofast
+LDLIBS := -lm
+
+SRC := main.c \
+       common/common.c \
+       configuration/config.c \
+       layer/layer.c \
+       randomizer/randomizer.c \
+       initialize/initialize.c \
+       training/training.c
+
+HDR := $(wildcard *.h */*.h)
+
+.PHONY: all seq par mpi clean
+
+all: seq par
+seq: exec_seq
+par: exec_par
+mpi: exec_mpi
+
+exec_seq: $(SRC) $(HDR)
+	$(CC) $(OPT) $(SRC) -o $@ $(LDLIBS)
+
+exec_par: $(SRC) $(HDR)
+	$(CC) $(OPT) -fopenmp $(SRC) -o $@ $(LDLIBS)
+
+exec_mpi: $(SRC) $(HDR)
+	$(MPICC) $(OPT) $(SRC) -o $@ $(LDLIBS)
+clean:
+	rm -f exec_seq exec_par exec_mpi
+\end{verbatim}
+
+Llavors, executant \texttt{make mpi} es crea l'executable. Per executar el programa simplement cal fer \texttt{./exec\_mpi}
+
+S'ha modificat el fitxer \texttt{mpi.sub} per ajustar-lo als nostres fitxers:
+
+\begin{verbatim}
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=6
+#SBATCH --cpus-per-task=1
+#SBATCH --exclusive
+#SBATCH --partition=new-nodo.q
+
+set -e
+
+module add gcc/13.2.1
+module add openmpi
+
+make mpi
+
+export OMP_NUM_THREADS=1
+
+echo "Processos MPI: ${SLURM_NTASKS}"
+echo "Particio: ${SLURM_JOB_PARTITION}"
+
+mpirun -np "${SLURM_NTASKS}" ./exec_mpi configuration/configfile.txt
+
+make clean
+\end{verbatim}
+
+Per executar el programa al clúster, s'utilitza la comanda
+\texttt{sbatch mpi.sub}. 
+
+Amb la configuració actual del
+fitxer \texttt{mpi.sub}, el programa s'executa a la partició
+\texttt{new-nodo.q} amb 6 processos MPI, tal com indiquen
+els paràmetres \texttt{--partition} i \texttt{--ntasks},
+respectivament.
+
+Per executar el programa a la partició \texttt{nodo.q},
+només cal modificar el paràmetre \texttt{--partition}
+del fitxer \texttt{mpi.sub}. De la mateixa manera, per
+modificar el nombre de processos de l'execució, només
+cal canviar el valor del paràmetre \texttt{--ntasks}.
+
+\newpage
+\section{Estratègia de paral·lelització}
+
+L'estratègia de paral·lelització es fa mitjançant les funcions de \texttt{\textbf{MPI}}.
+
+\begin{enumerate}
+    \item \texttt{\textbf{MPI\_Allreduce()}}:
+
+    Aquesta és una de les crides principals que hem utilitzat per
+    optimitzar la paral·lelització del programa i reduir el nombre
+    de comunicacions entre processos.
+    
+    La funció \texttt{MPI\_Allreduce()} és una operació
+    col·lectiva d'MPI, és equivalent a
+    realitzar una operació \texttt{MPI\_Reduce()}
+    seguida d'una operació \texttt{MPI\_Bcast()},
+    però mitjançant una única crida.
+    
+    En la implementació inicial, utilitzàvem
+    \texttt{MPI\_Reduce()} per sumar els gradients calculats
+    per cada procés i emmagatzemar el resultat al procés
+    \texttt{rank 0}. Posteriorment, utilitzàvem
+    \texttt{MPI\_Bcast()} per distribuir aquests gradients
+    globals a la resta de processos.
+    
+    Amb \texttt{MPI\_Allreduce()}, podem realitzar aquestes
+    dues operacions de manera conjunta. D'aquesta manera,
+    tots els processos aporten els seus gradients locals
+    a una operació de reducció i, en finalitzar la crida,
+    tots disposen del resultat global.
+    
+    Això ens permet reduir el nombre de crides col·lectives
+    d'MPI. Per a cada connexió entre dues capes
+    de la xarxa neuronal, passem de realitzar quatre
+    crides col·lectives a fer-ne només dues:
+    una per sumar els gradients dels pesos
+    (\texttt{dw}) i una altra per sumar els gradients
+    dels biaixos (\texttt{dbias}).
+    
+    Aquesta reducció del nombre de comunicacions
+    disminueix el temps dedicat a la sincronització
+    entre processos i, en conseqüència, millorar
+    el rendiment del programa.
+    
+    \medskip
+    
+    La sintaxi general de la funció és:
+    
+    \begin{lstlisting}[language=C]
+    MPI_Allreduce(sendbuf, recvbuf, count, datatype,
+                  op, comm);
+    \end{lstlisting}
+    
+    \noindent On cadascun dels arguments té el significat següent:
+    
+    \begin{itemize}
+    
+        \item \textbf{\texttt{sendbuf}:}
+        És el buffer d'entrada que conté les dades locals
+        que cada procés aporta a l'operació de reducció.
+        En el nostre cas, correspon als gradients dels
+        pesos o dels biaixos calculats per cada procés.
+    
+        \item \textbf{\texttt{recvbuf}:}
+        És el buffer de sortida on s'emmagatzema el
+        resultat global de l'operació en tots els processos,
+        a diferència de \texttt{MPI\_Reduce()}, en què
+        només el procés arrel rep el resultat.
+    
+        \item \textbf{\texttt{count}:}
+        Indica el nombre d'elements que conté
+        el buffer sobre el qual es realitza l'operació.
+        En el nostre programa, aquest valor depèn
+        de si estem sumant els gradients dels pesos
+        o dels biaixos.    
+    
+        \item \textbf{\texttt{datatype}:}
+        Especifica el tipus de dada dels elements
+        que es volen reduir.
+        En el nostre cas, utilitzem \texttt{MPI\_FLOAT},
+        ja que els gradients estan emmagatzemats en vectors de tipus
+        \texttt{float}.
+    
+        \item \textbf{\texttt{op}:}
+        Indica l'operació de reducció que s'aplica
+        als elements dels buffers dels diferents processos.
+    
+        En el nostre programa utilitzem
+        \texttt{MPI\_SUM}, que suma els gradients locals
+        de tots els processos, element a element,
+        per obtenir els gradients globals del batch.
+    
+        \item \textbf{\texttt{comm}:}
+        És el comunicador que determina quins processos
+        participen en l'operació col·lectiva. Com que utilitzem
+        \texttt{MPI\_COMM\_WORLD}, tots els processos que executen el programa participen en la reducció i reben
+        els gradients globals resultants.
+
+        \medskip
+    \end{itemize} 
+    
+        
+    Com podem veure en el codi final, les dues crides específiques són:
+    
+    \begin{lstlisting}[language=C]
+    MPI_Allreduce(MPI_IN_PLACE, lay[l].dw, nw,
+                  MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+    
+    MPI_Allreduce(MPI_IN_PLACE, lay[l+1].dbias, nbias,
+                  MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+    \end{lstlisting}
+    
+    L'única diferència entre les dues crides és la informació que processen. La primera suma els gradients dels pesos (\texttt{dw}) de tots els processos, mentre que la segona suma els gradients dels biaixos (\texttt{dbias}).
+    
+    A més, la primera utilitza \texttt{nw}, que indica el nombre de pesos entre dues capes consecutives, mentre que la segona utilitza \texttt{nbias}, que correspon al nombre de biaixos de la capa següent.
+    
+    En tots dos casos, gràcies a \texttt{MPI\_IN\_PLACE}, el resultat global es guarda directament al mateix vector. Bàsicament, els gradients locals son substituïts directament pels gradients globals, que queden disponibles en tots els processos.
+
+    Per tant, \texttt{MPI\_Allreduce()} ens permet sumar els gradients dels pesos i dels biaixos calculats per tots els processos i distribuir el resultat global a cadascun d'ells. D'aquesta manera, reduïm el nombre de comunicacions MPI i garantim que tots els processos disposin dels mateixos gradients per actualitzar els pesos de la xarxa neuronal.
+ 
+     
+    
+    \item \texttt{\textbf{MPI\_Reduce()}}
+
+    
+    La funció \texttt{MPI\_Reduce()} permet combinar les dades locals de diferents processos mitjançant una operació determinada, com ara
+    una suma, i emmagatzemar el resultat en el procés arrel (\textit{root}).
+    
+    En la versió optimitzada, la funció \texttt{MPI\_Reduce} ja no s'utilitza a l'hora de sumar els gradients dels pesos i biaixos, ja que això ja ho fa el \texttt{MPI\_Allreduce}.
+    
+    Tanmateix, continuem utilitzant
+    \texttt{MPI\_Reduce()} al final de cada passada completa ( epoch ) per calcular la pèrdua global del model
+    (\texttt{global\_loss}).
+    
+    \medskip
+    
+    La sintaxi general de la funció és:
+    
+    \begin{lstlisting}[language=C]
+    MPI_Reduce(sendbuf, recvbuf, count, datatype,
+               op, root, comm);
+    \end{lstlisting}
+    
+    
+    \noindent On cadascun dels arguments té el significat següent:
+    
+    \begin{itemize}
+    
+        \item \textbf{\texttt{sendbuf}:}
+        Té la mateixa funcionalitat que a \texttt{MPI\_Allreduce()}.
+        En aquest cas, utilitzem \texttt{loss}, que conté
+        la pèrdua acumulada localment per cada procés durant
+        una passada completa d'entrenament.
+    
+        \item \textbf{\texttt{recvbuf}:}
+        A diferència de \texttt{MPI\_Allreduce()}, el resultat
+        només s'emmagatzema al procés arrel.
+        En el nostre cas, utilitzem \texttt{global\_loss},
+        que rep la suma de les pèrdues al \texttt{rank 0}.
+    
+        \item \textbf{\texttt{count}:}
+        Té la mateixa funcionalitat que a \texttt{MPI\_Allreduce()}.
+        Utilitzem \texttt{1}, ja que cada procés aporta
+        una única variable.
+    
+        \item \textbf{\texttt{datatype}:}
+        Té la mateixa funcionalitat que a \texttt{MPI\_Allreduce()}.
+        Utilitzem \texttt{MPI\_FLOAT}, ja que treballem
+        amb variables de tipus \texttt{float}.
+    
+        \item \textbf{\texttt{op}:}
+        Té la mateixa funcionalitat que a \texttt{MPI\_Allreduce()}.
+        Utilitzem \texttt{MPI\_SUM} per sumar les pèrdues
+        acumulades de tots els processos.
+    
+        \item \textbf{\texttt{root}:}
+        És un argument que no apareix a \texttt{MPI\_Allreduce()}.
+        Indica quin procés rebrà el resultat global.
+        Utilitzem \texttt{0}, de manera que el resultat
+        només es guarda al \texttt{rank 0}.
+    
+        \item \textbf{\texttt{comm}:}
+        Té la mateixa funcionalitat que a \texttt{MPI\_Allreduce()}.
+        Utilitzem \texttt{MPI\_COMM\_WORLD} perquè
+        tots els processos participin en la reducció.
+    
+    \end{itemize}
+
+    
+    \medskip
+    
+    Com podem veure en el codi final, la crida
+    que utilitzem és:
+    
+    \begin{lstlisting}[language=C]
+    float global_loss = 0.0;
+    
+    MPI_Reduce(&loss, &global_loss, 1, MPI_FLOAT,
+               MPI_SUM, 0, MPI_COMM_WORLD);
+    
+    if (rank == 0) {
+        printf("Epoch %d Loss: %f\n", it,
+               global_loss/num_training_patterns);
+    }
+    \end{lstlisting}
+    
+    En aquesta crida, cada procés aporta el valor
+    de la seva pèrdua local (\texttt{loss}) i
+    \texttt{MPI\_Reduce()} realitza la suma de
+    tots aquests valors.
+    
+    El resultat s'emmagatzema a la variable
+    \texttt{global\_loss} del procés
+    \texttt{rank 0}.
+    
+    Finalment, aquest procés divideix
+    la pèrdua global pel nombre total de
+    patrons d'entrenament
+    (\texttt{num\_training\_patterns})
+    per obtenir la pèrdua mitjana de la passada completa,
+    que posteriorment mostra per pantalla.
+    
+    A diferència de la reducció dels gradients,
+    en aquest cas no és necessari distribuir
+    el resultat als altres processos, ja que
+    la pèrdua global només s'utilitza per
+    mostrar l'evolució de l'entrenament. Per
+    aquest motiu, no fem ús de la funció
+    \texttt{MPI\_Bcast()}.
+    
+    Per tant, \texttt{MPI\_Reduce()} ens permet
+    calcular eficientment un resultat global
+    a partir de les dades parcials de tots
+    els processos, sense necessitat de
+    realitzar comunicacions individuals ni
+    sumar manualment els resultats al procés
+    arrel.
+
+    \item \texttt{\textbf{Modificacions dels bucles for}}:
+    
+    Una de les parts importants de la paral·lelització, més enllà de les crides a les funcions MPI, són les modificacions realitzades al bucle \texttt{for} que recorre els patrons d'entrenament. Inicialment, teníem:
+    
+    \begin{lstlisting}[language=C]
+    for (int nb = 0; nb < num_training_patterns/batch_size; nb++) {
+        init_deltas();
+        for (int i = nb*batch_size; i < (nb+1)*batch_size; i++) {
+            int p = ranpat[i];
+    
+            feed_input(p);
+            forward_prop();
+            loss += compute_loss(p);
+            back_prop(p);
+        }
+        update_weights();
+    }
+    \end{lstlisting}
+    
+    En aquest codi, el bucle exterior recorre els batches en què es divideix el conjunt de patrons d'entrenament. El nombre de batches complets es determina dividint el nombre total de patrons d'entrenament
+    (\texttt{num\_training\_patterns}) per la mida de cada batch (\texttt{batch\_size}). Posteriorment, el bucle interior recorre tots els patrons (en el nostre cas, imatges) del batch corresponent, fent els càlculs necessaris per a l'entrenament de la xarxa neuronal i acumulant els gradients dels pesos i dels biaixos. Un cop processats tots els patrons del batch, s'actualitzen els paràmetres de la xarxa mitjançant la funció \texttt{update\_weights()}.
+
+    \newpage
+    
+    Per poder paral·lelitzar aquest codi, aprofitem el fet que els patrons d'un mateix batch es poden processar de manera independent, ja que els pesos i els biaixos de la xarxa no es modifiquen fins que s'han processat tots els patrons del batch. Això ens permet distribuir els patrons entre els diferents processos i compartir els gradients calculats localment abans d'actualitzar els paràmetres de la xarxa. Per aquest motiu, passem a tenir:
+    
+    \begin{lstlisting}[language=C]
+    for (int nb = 0; nb < num_training_patterns/batch_size; nb++) {
+        init_deltas();
+    
+        for (int i = nb*batch_size + rank; i < (nb+1)*batch_size; i+=size) {
+            int p = ranpat[i];
+    
+            feed_input(p);
+            forward_prop();
+            loss += compute_loss(p);
+            back_prop(p);
+        }
+    
+        for (int l = 0; l < num_layers - 1; l++) {
+            int nw = num_neurons[l]*num_neurons[l+1];
+            int nbias = num_neurons[l+1];
+    
+            MPI_Allreduce(MPI_IN_PLACE, lay[l].dw, nw,
+                          MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+    
+            MPI_Allreduce(MPI_IN_PLACE, lay[l+1].dbias, nbias,
+                          MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+        }
+    
+        update_weights();
+    }
+    \end{lstlisting}
+    
+    Podem observar que el bucle exterior, que s'encarrega de recórrer els diferents batches, es manté igual, ja que no podem paral·lelitzar aquesta part sense modificar el funcionament de l'algorisme original. Això es deu al fet que cada batch necessita els pesos i els biaixos actualitzats després del processament del batch anterior.
+    
+    D'altra banda, podem veure que hem introduït dues modificacions al bucle interior, que s'encarrega de processar els patrons del batch corresponent. Hem passat de \texttt{i = nb*batch\_size} a \texttt{i = nb*batch\_size + rank}, i de \texttt{i++} a \texttt{i+=size}. Aquestes modificacions constitueixen una part fonamental de la paral·lelització.
+    
+    Com ja hem comentat, la part que es paral·lelitza és el processament dels patrons (imatges) de cada batch. D'aquesta manera, els processos es reparteixen els patrons de cada batch i calculen i acumulen localment els gradients obtinguts a partir del processament dels patrons que els corresponen.
+    
+    Aquesta distribució es realitza gràcies a les modificacions introduïdes al bucle \texttt{for}. En sumar \texttt{rank}, que correspon a l'identificador de cada procés dins del comunicador, aconseguim que cada procés comenci a processar els patrons des d'una posició inicial diferent. Posteriorment, mitjançant \texttt{i+=size}, on \texttt{size} correspon al nombre total de processos, cada procés avança saltant les posicions corresponents als patrons assignats als altres processos.
+    
+    Per exemple, si tenim un batch de 10 patrons i executem el programa amb 4 processos, la distribució dels índexs dels patrons del primer batch serà la següent:
+    
+    \begin{itemize}
+        \item Procés 0: patrons 0, 4 i 8.
+        \item Procés 1: patrons 1, 5 i 9.
+        \item Procés 2: patrons 2 i 6.
+        \item Procés 3: patrons 3 i 7.
+    \end{itemize}
+    
+    D'aquesta manera, garantim que tots els patrons del batch es processin exactament una vegada, repartint el treball entre els diferents processos de la manera més equilibrada possible ( sempre que els processos parteixin dels mateixos pesos i biaixos inicials ).
+    
+    Un cop cada procés ha acabat de processar els patrons que li corresponen, utilitzem \texttt{MPI\_Allreduce()} per sumar els gradients locals i obtenir els gradients globals del batch en tots els processos. Posteriorment, tots executen la funció \texttt{update\_weights()} amb els mateixos gradients, mantenint així sincronitzats els paràmetres actualitzats de la xarxa neuronal.
+    
+    Sense aquestes modificacions al bucle interior, tots els processos farien l'entrenament amb tots els patrons de cada batch. Per tant, no estaríem distribuint el treball, sinó que tots els processos estarien realitzant els mateixos càlculs de manera redundant. A més, en sumar els gradients mitjançant \texttt{MPI\_Allreduce()}, estaríem comptabilitzant diverses vegades la contribució de cada patró, cosa que alteraria l'entrenament de la xarxa neuronal.
+    
+    
+    
+\end{enumerate}
+
+
+
+El codi final ha quedat:
+\begin{lstlisting}
+for (int nb = 0; nb < num_training_patterns/batch_size; nb++) {
+    init_deltas();
+
+    for (int i = nb*batch_size + rank; i < (nb+1)*batch_size; i+=size) {
+        int p = ranpat[i];
+
+        feed_input(p);
+        forward_prop();
+        loss += compute_loss(p);
+        back_prop(p);
+    }
+    for (int l = 0; l < num_layers - 1; l++){
+        int nw = num_neurons[l]*num_neurons[l+1];
+        int nbias = num_neurons[l+1];
+
+        MPI_Allreduce(MPI_IN_PLACE, lay[l].dw, nw, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+
+        MPI_Allreduce(MPI_IN_PLACE, lay[l + 1].dbias, nbias, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+
+    }
+    update_weights();
+}
+float global_loss = 0.0;
+MPI_Reduce(&loss, &global_loss, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+if (rank == 0){
+    printf("Epoch %d Loss: %f\n", it, global_loss/num_training_patterns);
+}
+\end{lstlisting}
+
+\newpage
+\section{Anàlisi de rendiment}
+
+En aquesta secció s'estudia el rendiment del programa en comparació amb els temps de referència proporcionats.
+
+Es fa ús dels conceptes definits a la pràctica anterior, que es recorden a continuació:
+
+\begin{defibox}[Speedup]
+El \textbf{speedup} ($S_p$) mesura quant més ràpid s'executa una tasca utilitzant $p$ processos en comparació amb l'execució seqüencial tradicional amb un sol processador.
+
+Es defineix com:
+\[
+S_p = \frac{T_1}{T_p}
+\]
+\end{defibox}
+
+\begin{defibox}[Eficiència]
+L'\textbf{eficiència} ($E_p$) mesura com de bé s'estan aprofitant els recursos de càlcul. Indica la proporció entre el speedup obtingut
+i el speedup ideal que es podria aconseguir
+utilitzant $p$ processos.
+
+Es defineix com:
+\[
+E_p = \frac{S_p}{p} = \frac{T_1}{p\cdot T_p}
+\]
+\end{defibox}
+
+\subsection{Comparació amb les dades de referència}
+
+Els temps d'execució del programa varien segons la partició del clúster on s'executen, a continuació mostrem el temps d'execució, el \textit{speedup} i l'eficiència de l'execució del programa en la partició \texttt{\textbf{nodo.q}}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Processos MPI} & \textbf{Temps (s)} & \textbf{Speedup} & \textbf{Eficiència} \\ \hline
+2 & 30,766 $\pm$ 1,223 & 1,32 $\pm$ 0,05 & 0,66 \\ \hline
+4 & 18,908 $\pm$ 0,698 & 2,15 $\pm$ 0,08 & 0,54 \\ \hline
+6 & 18,803 $\pm$ 0,486 & 2,17 $\pm$ 0,06 & 0,36 \\ \hline
+\end{tabular}
+\caption{Temps d'execució (mitjana $\pm$ desviació estàndard de 20 execucions), speedup i eficiència de la versió MPI.}
+\label{tab:mpi_resultats}
+\end{table}
+El \textit{speedup} i l'eficiència es calculen amb el temps seqüencial de referència (40,738 s, Wilma, \textit{nodo.q}).
+
+Comparant amb els temps de referència, es veu que no s'assoleixen completament aquests valors. La nostra execució està unes dècimes de segon o un segon per sobre dels temps de referència. Veient però les diferències percentuals, no s'està gaire per sobre dels temps de referència, el nostre programa tarda un 5,5\% més en el pitjor dels casos.
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Processos} & \textbf{Ref. (s)} & \textbf{Propi (s)} & \textbf{Dif. (s)} & \textbf{Dif. (\%)} & \textbf{Execs. $<$ ref.} \\ \hline
+2 & 29,466 & 30,766 $\pm$ 1,223 & 1,301 & 4,41 & 2/20 \\ \hline
+4 & 18,382 & 18,908 $\pm$ 0,698 & 0,526 & 2,86 & 5/20 \\ \hline
+6 & 17,820 & 18,803 $\pm$ 0,486 & 0,983 & 5,52 & 0/20 \\ \hline
+\end{tabular}
+\caption{Comparació del temps d'execució MPI propi (mitjana $\pm$ desviació estàndard) amb el temps de referència. Els valors negatius indiquen un temps inferior al de referència.}
+\label{tab:mpi_comp_temps}
+\end{table}
+
+Els valors del \textit{speedup} i l'eficiència son coherents amb el que s'ha vist amb el temps d'execució, el \textit{speedup} i l'eficiència són lleugerament inferiors als de referència. La columna de $Execs < ref$, diu el nombre d'execucions ( de les 20 que hem fet ) que estan estrictament per sota del temps de referència.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Processos} & \textbf{Speedup ref.} & \textbf{Speedup propi} & \textbf{Eficiència ref.} & \textbf{Eficiència pròpia} \\ \hline
+2 & 1,38 & 1,32 $\pm$ 0,05 & 0,69 & 0,66 \\ \hline
+4 & 2,22 & 2,15 $\pm$ 0,08 & 0,55 & 0,54 \\ \hline
+6 & 2,29 & 2,17 $\pm$ 0,06 & 0,38 & 0,36 \\ \hline
+\end{tabular}
+\caption{Speedup i eficiència MPI propis i de referència, calculats amb el temps seqüencial de referència (40,738 s).}
+\label{tab:mpi_comp_speedup}
+\end{table}
+
+A continuació, fem el mateix anàlisi executant el programa en la partició \texttt{\textbf{new-nodo.q}}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Processos MPI} & \textbf{Temps (s)} & \textbf{Speedup} & \textbf{Eficiència} \\ \hline
+2 & 6,582 $\pm$ 0,096 & 1,84 $\pm$ 0,03 & 0,92 \\ \hline
+4 & 4,116 $\pm$ 0,086 & 2,94 $\pm$ 0,06 & 0,73 \\ \hline
+6 & 3,800 $\pm$ 0,203 & 3,18 $\pm$ 0,17 & 0,53 \\ \hline
+\end{tabular}
+\caption{Temps d'execució (mitjana $\pm$ desviació estàndard de 20 execucions), speedup i eficiència de la versió MPI.}
+\label{tab:mpi_resultats}
+\end{table}
+
+El \textit{speedup} i l'eficiència es calculen amb el temps seqüencial de referència (12,096 s, Wilma, \textit{new-nodo.q}).
+
+En aquesta partició del clúster hi ha més variabilitat de resultats segons el nombre de processos usats. Amb 2 processos, el nostre codi millora el temps de referència, i, en conseqüència, presenta un major speedup i eficiència. Amb 4 i 6 processos, el codi no millora els temps de referència, amb un temps un 6\% superior al de referència en el pitjor dels casos.
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Processos} & \textbf{Ref. (s)} & \textbf{Propi (s)} & \textbf{Dif. (s)} & \textbf{Dif. (\%)} & \textbf{Execs. $<$ ref.} \\ \hline
+2 & 6,932 & 6,582 $\pm$ 0,096 & $-$0,350 & $-$5,05 & 20/20 \\ \hline
+4 & 3,901 & 4,116 $\pm$ 0,086 & 0,215 & 5,52 & 0/20 \\ \hline
+6 & 3,576 & 3,800 $\pm$ 0,203 & 0,224 & 6,26 & 2/20 \\ \hline
+\end{tabular}
+\caption{Comparació del temps d'execució MPI propi (mitjana $\pm$ desviació estàndard) amb el temps de referència. Els valors negatius indiquen un temps inferior al de referència.}
+\label{tab:mpi_comp_temps}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Processos} & \textbf{Speedup ref.} & \textbf{Speedup propi} & \textbf{Eficiència ref.} & \textbf{Eficiència pròpia} \\ \hline
+2 & 1,74 & 1,84 $\pm$ 0,03 & 0,87 & 0,92 \\ \hline
+4 & 3,10 & 2,94 $\pm$ 0,06 & 0,78 & 0,73 \\ \hline
+6 & 3,38 & 3,18 $\pm$ 0,17 & 0,56 & 0,53 \\ \hline
+\end{tabular}
+\caption{Speedup i eficiència MPI propis i de referència, calculats amb el temps seqüencial de referència (12,096 s).}
+\label{tab:mpi_comp_speedup}
+\end{table}
+
+\newpage
+\section{Problemes trobats}
+
+\subsection{Unió de \texttt{\textbf{MPI\_Reduce()}} i \texttt{\textbf{MPI\_Bcast()}}}
+
+Inicialment s'havia paral·lelitzat usant les comandes \texttt{\textbf{MPI\_Reduce()}} i \texttt{\textbf{MPI\_Bcast()}}, però la IA ens va proposar usar la comanda \texttt{\textbf{MPI\_Allreduce()}} i després d'investigar el funcionament d'aquesta funció, s'ha vist que és la unió de les dues funcions que volíem usar, i que a més, en aquest cas, és més ràpida perquè ja està preparada internament per a que funcionalment sigui com concatenar les dues funcions.
+
+Aquesta millora ens ha ajudat a disminuir el temps d'execució general del programa.
+\subsection{Rendiments subòptim}
+
+En l'anàlisi del rendiment, podem observar que el programa no acaba d'assolir el rendiment òptim en funció del nombre de processos utilitzats, ja que en alguns casos els temps d'execució són superiors als valors de referència establerts al PDF.
+
+Això es podria considerar un problema, ja que no aconseguim assolir els temps d'execució esperats. Tanmateix, com que les diferències són molt petites, inferiors a un segon en la majoria dels casos, podem considerar que aquestes variacions podrien estar relacionades amb factors externs, com ara la càrrega dels processadors, la disponibilitat de recursos del sistema o altres condicions d'execució.
+
+De totes maneres, podríem intentar reduir encara més el nombre de crides a les funcions de comunicació d'MPI. No obstant això, segons les modificacions que haguéssim d'introduir al codi, aquestes optimitzacions podrien incrementar el cost computacional i, en conseqüència, empitjorar el temps d'execució del programa.
+
+Per aquest motiu, hem decidit donar més importància a la correcta paral·lelització del programa i a una implementació adequada de les comunicacions MPI, prioritzant la correcció i la consistència dels resultats obtinguts.
+
+
+\newpage
+
+\section{Conclusions}
+
+En aquesta pràctica hem aconseguit implementar una versió paral·lelitzada mitjançant MPI del programa d'entrenament d'una xarxa neuronal, distribuint el treball entre diferents processos amb l'objectiu de reduir el temps d'execució i mantenir uns resultats coherents amb els de la versió seqüencial.
+
+Una de les decisions més importants ha estat determinar quin bucle del programa era el més adequat per paral·lelitzar. Finalment, hem decidit paral·lelitzar el bucle que recorre els patrons d'entrenament de cada batch:
+
+\begin{lstlisting}[language=C]
+for (int i = nb*batch_size + rank;
+     i < (nb+1)*batch_size; i += size) {
+
+    int p = ranpat[i];
+    feed_input(p);
+    forward_prop();
+    loss += compute_loss(p);
+    back_prop(p);
+}
+\end{lstlisting}
+
+El principal motiu d'aquesta elecció és que els patrons d'un mateix batch es poden processar de manera independent, sempre que tots els processos parteixin dels mateixos pesos i biaixos. Cada procés pot calcular la propagació cap endavant (\texttt{forward\_prop()}), la funció de pèrdua (\texttt{compute\_loss()}) i la retropropagació (\texttt{back\_prop()}) dels patrons que li corresponen, acumulant localment els gradients dels pesos i dels biaixos.
+
+Aquesta independència ens permet repartir els patrons entre els processos sense necessitat de realitzar comunicacions durant el processament individual de cadascun d'ells. Un cop finalitzat el batch, utilitzem \texttt{MPI\_Allreduce()} per sumar els gradients locals i obtenir els gradients globals en tots els processos. D'aquesta manera, tots poden executar \texttt{update\_weights()} amb els mateixos valors i mantenir sincronitzats els paràmetres de la xarxa neuronal.
+
+En canvi, paral·lelitzar directament el bucle de les passades totals (epochs) no seria una opció adequada per a aquesta implementació, ja que cada epoch depèn dels pesos i dels biaixos obtinguts en l'anterior. Per tant, no podem executar diferents passades simultàniament sense modificar el funcionament de l'algorisme d'entrenament.
+
+De la mateixa manera, tampoc seria convenient distribuir els diferents batches entre processos de manera independent, ja que els pesos s'actualitzen després de processar cada batch. Això implica que el batch següent ha de començar amb els pesos actualitzats de l'anterior. Paral·lelitzar-los directament comportaria treballar amb versions diferents de la xarxa neuronal i podria alterar considerablement els resultats de l'entrenament.
+
+Pel que fa als resultats, hem observat una reducció considerable del temps d'execució respecte de la versió seqüencial en augmentar el nombre de processos. Tot i això, la millora no és proporcional al nombre de processos utilitzats, ja que les comunicacions i la sincronització necessàries al final de cada batch introdueixen un cost addicional.
+
+Aquest cost esdevé especialment rellevant quan augmentem el nombre de processos, perquè cadascun ha de processar menys patrons, mentre que les operacions de comunicació continuen sent necessàries. Això explica que incrementar el nombre de processos no garanteixi sempre una reducció del temps d'execució.
+
+En conclusió, hem implementat una paral·lelització funcional de l'entrenament mitjançant MPI, mantenint uns resultats d'aprenentatge similars als de la versió seqüencial. A més, hem pogut comprovar la importància d'escollir correctament la regió del codi que es vol paral·lelitzar i d'equilibrar el treball computacional amb el cost de les comunicacions entre processos.
+
+
+\newpage
+\section{Ús de la IA}
+
+En aquesta pràctica s'ha fet ús d'intel·ligència artificial per a diverses tasques, amb l'objectiu d'aclarir conceptes, correcció d'errors tipogràfics i conceptuals i automatització de tasques repetitives.
+
+S'han usat scripts de Python generats per IA que recollien les dades generades en els \texttt{slurm-*.out} i generaven les taules i els gràfics presentats en aquest informe, ja que representava una tasca repetitiva amb càlculs de mitjanes i variàncies que no representen cap complicació conceptual.
+
+També s'ha usat la IA per fer recerca de conceptes i propostes de millora, com la proposta d'ús de la funció \texttt{\textbf{MPI\_Allreduce()}} explicada anteriorment. La IA ha sigut una de les eines de recerca, s'ha complementat la informació amb altres fonts, esmentades en la bibliografia.
+
+\newpage
+\nocite{mpi50}   % o \nocite{*} per incloure-hi totes les entrades del .bib
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}
