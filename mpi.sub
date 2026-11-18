@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --ntasks=6
+#SBATCH --ntasks=4
 #SBATCH --cpus-per-task=1
 #SBATCH --exclusive
 #SBATCH --partition=new-nodo.q
@@ -11,8 +11,6 @@ module add gcc/13.2.1
 module add openmpi
 
 make mpi
-
-export OMP_NUM_THREADS=1
 
 echo "Processos MPI: ${SLURM_NTASKS}"
 echo "Particio: ${SLURM_JOB_PARTITION}"

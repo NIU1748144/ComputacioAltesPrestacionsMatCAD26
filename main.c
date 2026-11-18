@@ -115,7 +115,7 @@ void train_neural_net() {
 
 		MPI_Allreduce(MPI_IN_PLACE, lay[l].dw, nw,  MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 
-	        MPI_Allreduce(MPI_IN_PLACE, lay[l + 1].dbias, nbias, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+	    MPI_Allreduce(MPI_IN_PLACE, lay[l + 1].dbias, nbias, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 	
 	    }
             update_weights();
